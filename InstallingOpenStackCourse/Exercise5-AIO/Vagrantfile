@@ -1,0 +1,32 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+servers=[
+  {
+    :hostname => "controller",
+    :box => "ubuntu/xenial64",
+    :ram => 8192,
+    :cpu => 2,
+    :disk => "20GB",
+    :script => "sh /vagrant/deployment_setup.sh"
+  }
+]
+
+Vagrant.configure(2) do |config|
+    servers.each do |machine|
+        config.vm.define machine[:hostname] do |node|
+            node.vm.box = machine[:box]
+            node.disksize.size = machine[:disk]
+            node.vm.hostname = machine[:hostname]
+            node.vm.provider "virtualbox" do |vb|
+                vb.customize ["modifyvm", :id, "--memory", machine[:ram], "--cpus", machine[:cpu]]
+                vb.customize ["modifyvm", :id, "--nic2", "hostonly", "--hostonlyadapter2", "VirtualBox Host-Only Ethernet Adapter"]
+                vb.customize ["modifyvm", :id, "--nic3", "natnetwork", "--nat-network3", "ProviderNetwork1", "--nicpromisc3", "allow-all"]
+                file_to_disk = File.realpath( "." ).to_s + "/block1cinder.vdi"
+                vb.customize ['createhd', '--filename', file_to_disk, '--format', 'VDI', '--size', "20480"]
+                   # In line below: 'SCSI' may have to be changed to possibly other name of Storage Controller Name of VirtualBox VM
+                vb.customize ['storageattach', :id, '--storagectl', 'SCSI', '--port', 2, '--device', 0, '--type', 'hdd', '--medium', file_to_disk]
+              end
+            node.vm.provision "shell", inline: machine[:script], privileged: true, run: "once"
+            end
+      end
+end

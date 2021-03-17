@@ -1,0 +1,52 @@
+#cloud-config
+# vim: syntax=yaml
+
+# Set password module works for default account - 'ubuntu' in case of Ubuntu Cloud Images
+# While it is a nice to set a password in demo systems, this is a potential security threat, DO NOT DO THIS in production systems
+password: $6$rounds=4096$9aqHXgHRwyFPNCz3$1IR5TIIleTc3S.7UbF8MCmeDXThhz2fNr7YFerbW5ybuvzxlQezqiDh2lGFrV3VXMuOPxeC6.Q8ZJ1jOv97fE1
+chpasswd:
+    expire: false
+
+packages:
+  - apache2
+  - mysql-client
+  - rpl
+  - jshon
+  - php
+  - libapache2-mod-php
+  - php-mysql
+  - php-curl
+  - php-gd
+  - php-pear
+  - php-imagick
+  - php-imap
+  - php-mcrypt
+  - php-recode
+  - php-tidy
+  - php-xmlrpc
+
+write_files:
+  - content: |
+         hostname=$(curl -ss http://169.254.169.254/2009-04-04/meta-data/hostname | cut -f 1 -d '.')
+         localipv4=$(curl -ss http://169.254.169.254/2009-04-04/meta-data/local-ipv4)
+         db_server=$(curl -sS http://169.254.169.254/openstack/2012-08-10/meta_data.json | jshon -e meta -e db_server_ip | sed 's/^"//' | sed s'/.$//')
+         echo "$localipv4 $hostname" >> /etc/hosts
+         cd /var/www/html
+         wget http://wordpress.org/latest.tar.gz
+         tar xzvf latest.tar.gz
+         cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
+         rpl database_name_here wordpressdb /var/www/html/wordpress/wp-config.php
+         rpl username_here wordpressuser /var/www/html/wordpress/wp-config.php
+         rpl password_here openstack /var/www/html/wordpress/wp-config.php
+         rpl localhost $db_server /var/www/html/wordpress/wp-config.php
+         sudo chown -R www-data:www-data /var/www/html/
+         sudo chmod -R 755 /var/www/html/
+         rm -rf /var/www/html/index.html
+         a2enmod headers
+         a2enmod rewrite
+         systemctl restart apache2
+    owner: root:root
+    path: /tmp/start_me_up.sh
+    permissions: '0700'
+runcmd:
+  - sh /tmp/start_me_up.sh
